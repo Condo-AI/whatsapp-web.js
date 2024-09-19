@@ -94,7 +94,7 @@ class RemoteAuth extends BaseAuthStrategy {
         }
         var self = this;
         this.backupSync = setInterval(async function () {
-            await self.storeRemoteSession();
+            await self.storeRemoteSession({emit: true});
         }, this.backupSyncIntervalMs);
     }
 
