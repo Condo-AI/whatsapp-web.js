@@ -98,11 +98,13 @@ class Client extends EventEmitter {
             hasReloaded = true;
         };
         try{
+            console.log('Start inject..');
             this.pupPage.on('framenavigated', reloadHandler);
 
             await this.pupPage.waitForFunction('window.Debug?.VERSION != undefined', {timeout: this.options.authTimeoutMs});
 
             const version = await this.getWWebVersion();
+            console.log('wwebjs detect version:' + version);
             const isCometOrAbove = parseInt(version.split('.')?.[1]) >= 3000;
 
             if (isCometOrAbove) {
@@ -343,6 +345,7 @@ class Client extends EventEmitter {
         await this.inject();
 
         this.pupPage.on('framenavigated', async (frame) => {
+            console.log('wwebjs detect framenavigated on initialize');
             if(frame.url().includes('post_logout=1') || this.lastLoggedOut) {
                 this.emit(Events.DISCONNECTED, 'LOGOUT');
                 await this.authStrategy.logout();
