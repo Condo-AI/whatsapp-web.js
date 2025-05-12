@@ -102,12 +102,14 @@ class Client extends EventEmitter {
         console.log('wwebjs detect version:' + version);
         const isCometOrAbove = parseInt(version.split('.')?.[1]) >= 3000;
 
+        console.log('evaluating store');
         if (isCometOrAbove) {
             await this.pupPage.evaluate(ExposeAuthStore);
         } else {
             await this.pupPage.evaluate(ExposeLegacyAuthStore, moduleRaid.toString());
         }
 
+        console.log('wait needAuthentication');
         const needAuthentication = await this.pupPage.evaluate(async () => {
             let state = window.AuthStore.AppState.state;
 
@@ -177,6 +179,7 @@ class Client extends EventEmitter {
             });
         }
 
+        console.log('wait onAuthAppStateChangedEvent');
         await exposeFunctionIfAbsent(this.pupPage, 'onAuthAppStateChangedEvent', async (state) => {
             if (state == 'UNPAIRED_IDLE') {
                 // refresh qr code
@@ -184,6 +187,7 @@ class Client extends EventEmitter {
             }
         });
 
+        console.log('wait onAppStateHasSyncedEvent');
         await exposeFunctionIfAbsent(this.pupPage, 'onAppStateHasSyncedEvent', async () => {
             const authEventPayload = await this.authStrategy.getAuthEventPayload();
             /**
@@ -239,16 +243,19 @@ class Client extends EventEmitter {
             this.authStrategy.afterAuthReady();
         });
         let lastPercent = null;
+        console.log('wait onOfflineProgressUpdateEvent');
         await exposeFunctionIfAbsent(this.pupPage, 'onOfflineProgressUpdateEvent', async (percent) => {
             if (lastPercent !== percent) {
                 lastPercent = percent;
                 this.emit(Events.LOADING_SCREEN, percent, 'WhatsApp'); // Message is hardcoded as "WhatsApp" for now
             }
         });
+        console.log('wait onLogoutEvent');
         await exposeFunctionIfAbsent(this.pupPage, 'onLogoutEvent', async () => {
             this.lastLoggedOut = true;
             await this.pupPage.waitForNavigation({waitUntil: 'load', timeout: 5000}).catch((_) => _);
         });
+        console.log('wait evaluate');
         await this.pupPage.evaluate(() => {
             window.AuthStore.AppState.on('change:state', (_AppState, state) => { window.onAuthAppStateChangedEvent(state); });
             window.AuthStore.AppState.on('change:hasSynced', () => { window.onAppStateHasSyncedEvent(); });
