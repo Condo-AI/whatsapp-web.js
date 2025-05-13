@@ -349,6 +349,7 @@ class Client extends EventEmitter {
                 await this.authStrategy.afterBrowserInitialized();
                 this.lastLoggedOut = false;
             }
+            await new Promise((res) => setTimeout(()=> res(), 10000)); // cooldown after reload
             await this.inject();
         });
     }
