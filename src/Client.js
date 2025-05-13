@@ -349,7 +349,9 @@ class Client extends EventEmitter {
                 await this.authStrategy.afterBrowserInitialized();
                 this.lastLoggedOut = false;
             }
-            await new Promise((res) => setTimeout(()=> res(), 10000)); // cooldown after reload
+            console.log('take a nap...');
+            await new Promise((r) => setTimeout(r, 10000));
+            console.log('...wake up');
             await this.inject();
         });
     }
