@@ -266,8 +266,6 @@ class Client extends EventEmitter {
         }catch(err){
             if(!hasReloaded)
                 throw err;
-        }finally{
-            this.pupPage.off('framenavigated', reloadHandler);
         }
     }
 
