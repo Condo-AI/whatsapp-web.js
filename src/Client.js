@@ -95,6 +95,12 @@ class Client extends EventEmitter {
      * Private function
      */
     async inject() {
+        const navHandler = () => (frame) => {
+            console.log("onframenavigated during inject");
+        };
+
+        this.pupPage.on('framenavigated', navHandler );
+
         await this.pupPage.waitForFunction('window.Debug?.VERSION != undefined', {timeout: this.options.authTimeoutMs});
         await this.setDeviceName(this.options.deviceName, this.options.browserName);
         const pairWithPhoneNumber = this.options.pairWithPhoneNumber;
@@ -272,6 +278,8 @@ class Client extends EventEmitter {
                 await window.onLogoutEvent();
             });
         });
+
+        this.pupPage.off('framenavigated', navHandler );
     }
 
     /**
@@ -346,6 +354,7 @@ class Client extends EventEmitter {
         await this.inject();
 
         this.pupPage.on('framenavigated', async (frame) => {
+            console.log("onframenavigated");
             if(frame.url().includes('post_logout=1') || this.lastLoggedOut) {
                 this.emit(Events.DISCONNECTED, 'LOGOUT');
                 await this.authStrategy.logout();

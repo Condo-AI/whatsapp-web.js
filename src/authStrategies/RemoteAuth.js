@@ -129,8 +129,11 @@ class RemoteAuth extends BaseAuthStrategy {
             }).catch(() => {});
         }
         if (sessionExists) {
+            console.log("extraction from remote..");
+            const startMs = performance.now();
             await this.store.extract({session: this.sessionName, path: compressedSessionPath});
             await this.unCompressSession(compressedSessionPath);
+            console.log(`...done in ${performance.now() - startMs} ms`);
         } else {
             fs.mkdirSync(this.userDataDir, { recursive: true });
         }
