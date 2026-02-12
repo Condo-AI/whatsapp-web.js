@@ -102,8 +102,8 @@ class Client extends EventEmitter {
         };
         try{
             this.pupPage.on('framenavigated', reloadHandler);
-                
-            if(this.options.authTimeoutMs === undefined){
+                    
+            if(this.options.authTimeoutMs === undefined || this.options.authTimeoutMs==0){
                 this.options.authTimeoutMs = 30000;
             }
             let start = Date.now();
@@ -116,8 +116,7 @@ class Client extends EventEmitter {
             }
             if(!res){ 
                 throw 'auth timeout';
-            }
-        
+            }       
             await this.setDeviceName(this.options.deviceName, this.options.browserName);
             const pairWithPhoneNumber = this.options.pairWithPhoneNumber;
             const version = await this.getWWebVersion();
@@ -164,7 +163,7 @@ class Client extends EventEmitter {
                     }
                     return;
                 }
-                
+
                 // Register qr/code events
                 if (pairWithPhoneNumber.phoneNumber) {
                     await exposeFunctionIfAbsent(this.pupPage, 'onCodeReceivedEvent', async (code) => {
@@ -196,7 +195,7 @@ class Client extends EventEmitter {
                         }
                     });
 
-            
+
                     await this.pupPage.evaluate(async () => {
                         const registrationInfo = await window.AuthStore.RegistrationUtils.waSignalStore.getRegistrationInfo();
                         const noiseKeyPair = await window.AuthStore.RegistrationUtils.waNoiseInfo.get();
@@ -218,7 +217,6 @@ class Client extends EventEmitter {
                     window.Store.Cmd.refreshQR();
                 }
             });
-
 
             await exposeFunctionIfAbsent(this.pupPage, 'onAppStateHasSyncedEvent', async () => {
                 const authEventPayload = await this.authStrategy.getAuthEventPayload();
@@ -248,9 +246,17 @@ class Client extends EventEmitter {
                         await new Promise(r => setTimeout(r, 2000)); 
                         await this.pupPage.evaluate(ExposeLegacyStore);
                     }
-
-                    // Check window.Store Injection
-                    await this.pupPage.waitForFunction('window.Store != undefined');
+                    let start = Date.now();
+                    let res = false;
+                    while(start > (Date.now() - 30000)){
+                        // Check window.Store Injection
+                        res = await this.pupPage.evaluate('window.Store != undefined');
+                        if(res){break;}
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                    if(!res){
+                        throw 'ready timeout';
+                    }
                 
                     /**
                          * Current connection information
@@ -762,7 +768,10 @@ class Client extends EventEmitter {
             window.Store.Msg.on('change:body change:caption', (msg, newBody, prevBody) => { window.onEditMessageEvent(window.WWebJS.getMessageModel(msg), newBody, prevBody); });
             window.Store.AppState.on('change:state', (_AppState, state) => { window.onAppStateChangedEvent(state); });
             window.Store.Conn.on('change:battery', (state) => { window.onBatteryStateChangedEvent(state); });
-            window.Store.Call.on('add', (call) => { window.onIncomingCall(call); });
+            const callCollection = (window.Store && window.Store.Call) || (window.Store && window.Store.WAWebCallCollection);
+            if (callCollection && typeof callCollection.on === 'function') {
+                callCollection.on('add', (call) => { window.onIncomingCall(call); });
+            }
             window.Store.Chat.on('remove', async (chat) => { window.onRemoveChatEvent(await window.WWebJS.getChatModel(chat)); });
             window.Store.Chat.on('change:archive', async (chat, currState, prevState) => { window.onArchiveChatEvent(await window.WWebJS.getChatModel(chat), currState, prevState); });
             window.Store.Msg.on('add', (msg) => { 
@@ -879,7 +888,11 @@ class Client extends EventEmitter {
      * Closes the client
      */
     async destroy() {
-        await this.pupBrowser.close();
+        const browser = this.pupBrowser;
+        const isConnected = browser?.isConnected?.();
+        if (isConnected) {
+            await browser.close();
+        }
         await this.authStrategy.destroy();
     }
 
@@ -1264,7 +1277,7 @@ class Client extends EventEmitter {
     /**
      * Gets instances of all pinned messages in a chat
      * @param {string} chatId The chat ID
-     * @returns {Promise<[Message]|[]>}
+     * @returns {Promise<Array<Message>>}
      */
     async getPinnedMessages(chatId) {
         const pinnedMsgs = await this.pupPage.evaluate(async (chatId) => {
@@ -1942,7 +1955,7 @@ class Client extends EventEmitter {
      * 2 for POPULAR channels
      * 3 for NEW channels
      * @param {number} [searchOptions.limit = 50] The limit of found channels to be appear in the returnig result
-     * @returns {Promise<Array<Channel>|[]>} Returns an array of Channel objects or an empty array if no channels were found
+     * @returns {Promise<Array<Channel>>} Returns an array of Channel objects or an empty array if no channels were found
      */
     async searchChannels(searchOptions = {}) {
         return await this.pupPage.evaluate(async ({
@@ -2414,15 +2427,14 @@ class Client extends EventEmitter {
     async saveOrEditAddressbookContact(phoneNumber, firstName, lastName, syncToAddressbook = false)
     {
         return await this.pupPage.evaluate(async (phoneNumber, firstName, lastName, syncToAddressbook) => {
-            return await window.Store.AddressbookContactUtils.saveContactAction(
-                phoneNumber,
-                phoneNumber,
-                null,
-                null,
-                firstName,
-                lastName,
-                syncToAddressbook
-            );
+            return await window.Store.AddressbookContactUtils.saveContactAction({
+                'firstName' : firstName,
+                'lastName' : lastName,
+                'phoneNumber' : phoneNumber,
+                'prevPhoneNumber' : phoneNumber,
+                'syncToAddressbook': syncToAddressbook,
+                'username' : undefined
+            });
         }, phoneNumber, firstName, lastName, syncToAddressbook);
     }
 
@@ -2434,7 +2446,8 @@ class Client extends EventEmitter {
     async deleteAddressbookContact(phoneNumber)
     {
         return await this.pupPage.evaluate(async (phoneNumber) => {
-            return await window.Store.AddressbookContactUtils.deleteContactAction(phoneNumber);
+            const wid = window.Store.WidFactory.createWid(phoneNumber);
+            return await window.Store.AddressbookContactUtils.deleteContactAction({phoneNumber: wid});
         }, phoneNumber);
     }
 
